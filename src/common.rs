@@ -1,5 +1,6 @@
 use std::convert::{TryFrom, TryInto};
 use std::io::Write;
+use std::str::FromStr;
 
 use near_primitives::{
     borsh::BorshDeserialize,
@@ -11,37 +12,7 @@ use near_primitives::{
 pub type CliResult = color_eyre::eyre::Result<()>;
 
 use dialoguer::{theme::ColorfulTheme, Select};
-use strum::{EnumMessage, IntoEnumIterator};
-pub fn prompt_variant<T>(prompt: &str) -> T
-where
-    T: IntoEnumIterator + EnumMessage,
-    T: Copy + Clone,
-{
-    let variants = T::iter().collect::<Vec<_>>();
-    let actions = variants
-        .iter()
-        .map(|p| {
-            p.get_message()
-                .unwrap_or_else(|| "error[This entry does not have an option message!!]")
-                .to_owned()
-        })
-        .collect::<Vec<_>>();
-
-    let selected = Select::with_theme(&ColorfulTheme::default())
-        .with_prompt(prompt)
-        .items(&actions)
-        .default(0)
-        .interact()
-        .unwrap();
-
-    variants[selected]
-}
-
-#[derive(Debug, Clone)]
-pub struct SignerContext {
-    pub connection_config: Option<ConnectionConfig>,
-    pub signer_account_id: crate::types::account_id::AccountId,
-}
+use strum::IntoEnumIterator;
 
 #[derive(
     Debug,
@@ -124,8 +95,9 @@ impl std::str::FromStr for BlockHashAsBase58 {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self {
-            inner: near_primitives::serialize::from_base(s)
-                .map_err(|err| format!("base block hash sequence is invalid: {}", err))?
+            inner: bs58::decode(s)
+                .into_vec()
+                .map_err(|err| format!("base58 block hash sequence is invalid: {}", err))?
                 .as_slice()
                 .try_into()
                 .map_err(|err| format!("block hash could not be collected: {}", err))?,
@@ -139,41 +111,9 @@ impl std::fmt::Display for BlockHashAsBase58 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct AvailableRpcServerUrl {
-    pub inner: url::Url,
-}
-
-impl std::str::FromStr for AvailableRpcServerUrl {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let url: url::Url =
-            url::Url::parse(s).map_err(|err| format!("URL is not parsed: {}", err))?;
-        tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(async {
-                near_jsonrpc_client::JsonRpcClient::connect(url.clone())
-                    .call(near_jsonrpc_client::methods::status::RpcStatusRequest)
-                    .await
-            })
-            .map_err(|err| format!("AvailableRpcServerUrl: {:?}", err))?;
-        Ok(Self { inner: url })
-    }
-}
-
-impl std::fmt::Display for AvailableRpcServerUrl {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.inner.fmt(f)
-    }
-}
-
-impl interactive_clap::ToCli for AvailableRpcServerUrl {
-    type CliVariant = AvailableRpcServerUrl;
-}
-
 const ONE_NEAR: u128 = 10u128.pow(24);
 
-#[derive(Debug, Clone, Default, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd)]
 pub struct NearBalance {
     pub yoctonear_amount: u128,
 }
@@ -219,14 +159,14 @@ impl std::str::FromStr for NearBalance {
                             .parse::<u128>()
                             .map_err(|err| format!("Near Balance: {}", err))?
                             .checked_mul(10u128.pow(24))
-                            .ok_or_else(|| "Near Balance: underflow or overflow happens")?;
+                            .ok_or("Near Balance: underflow or overflow happens")?;
                         let len_fract = res_split[1].len() as u32;
                         let num_fract_yocto = if len_fract <= 24 {
                             res_split[1]
                                 .parse::<u128>()
                                 .map_err(|err| format!("Near Balance: {}", err))?
                                 .checked_mul(10u128.pow(24 - res_split[1].len() as u32))
-                                .ok_or_else(|| "Near Balance: underflow or overflow happens")?
+                                .ok_or("Near Balance: underflow or overflow happens")?
                         } else {
                             return Err(
                                 "Near Balance: too large fractional part of a number".to_string()
@@ -234,13 +174,13 @@ impl std::str::FromStr for NearBalance {
                         };
                         num_int_yocto
                             .checked_add(num_fract_yocto)
-                            .ok_or_else(|| "Near Balance: underflow or overflow happens")?
+                            .ok_or("Near Balance: underflow or overflow happens")?
                     }
                     1 => res_split[0]
                         .parse::<u128>()
                         .map_err(|err| format!("Near Balance: {}", err))?
                         .checked_mul(10u128.pow(24))
-                        .ok_or_else(|| "Near Balance: underflow or overflow happens")?,
+                        .ok_or("Near Balance: underflow or overflow happens")?,
                     _ => return Err("Near Balance: incorrect number entered".to_string()),
                 }
             }
@@ -260,7 +200,7 @@ impl interactive_clap::ToCli for NearBalance {
 const ONE_TERA_GAS: u64 = 10u64.pow(12);
 const ONE_GIGA_GAS: u64 = 10u64.pow(9);
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NearGas {
     pub inner: u64,
 }
@@ -316,27 +256,27 @@ impl NearGas {
                     .parse::<u64>()
                     .map_err(|err| format!("Near Gas: {}", err))?
                     .checked_mul(10u64.pow(12))
-                    .ok_or_else(|| "Near Gas: underflow or overflow happens")?;
+                    .ok_or("Near Gas: underflow or overflow happens")?;
                 let len_fract = res_split[1].len() as u32;
                 let num_fract_gas = if len_fract <= 12 {
                     res_split[1]
                         .parse::<u64>()
                         .map_err(|err| format!("Near Gas: {}", err))?
                         .checked_mul(10u64.pow(12 - res_split[1].len() as u32))
-                        .ok_or_else(|| "Near Gas: underflow or overflow happens")?
+                        .ok_or("Near Gas: underflow or overflow happens")?
                 } else {
                     return Err("Near Gas: too large fractional part of a number".to_string());
                 };
                 Ok(num_int_gas
                     .checked_add(num_fract_gas)
-                    .ok_or_else(|| "Near Gas: underflow or overflow happens")?)
+                    .ok_or("Near Gas: underflow or overflow happens")?)
             }
             1 => Ok(res_split[0]
                 .parse::<u64>()
                 .map_err(|err| format!("Near Gas: {}", err))?
                 .checked_mul(10u64.pow(12))
-                .ok_or_else(|| "Near Gas: underflow or overflow happens")?),
-            _ => return Err("Near Gas: incorrect number entered".to_string()),
+                .ok_or("Near Gas: underflow or overflow happens")?),
+            _ => Err("Near Gas: incorrect number entered".to_string()),
         }
     }
 }
@@ -345,7 +285,7 @@ impl interactive_clap::ToCli for NearGas {
     type CliVariant = NearGas;
 }
 
-#[derive(Debug, Clone, Default, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd)]
 pub struct TransferAmount {
     amount: NearBalance,
 }
@@ -389,73 +329,6 @@ impl From<TransferAmount> for NearBalance {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum ConnectionConfig {
-    Testnet,
-    Mainnet,
-    Betanet,
-    Custom { url: url::Url },
-}
-
-impl ConnectionConfig {
-    pub fn from_custom_url(custom_url: &AvailableRpcServerUrl) -> Self {
-        Self::Custom {
-            url: custom_url.inner.clone(),
-        }
-    }
-
-    pub fn rpc_url(&self) -> url::Url {
-        match self {
-            Self::Testnet => crate::consts::TESTNET_API_SERVER_URL.parse().unwrap(),
-            Self::Mainnet => crate::consts::MAINNET_API_SERVER_URL.parse().unwrap(),
-            Self::Betanet => crate::consts::BETANET_API_SERVER_URL.parse().unwrap(),
-            Self::Custom { url } => url.clone(),
-        }
-    }
-
-    pub fn archival_rpc_url(&self) -> url::Url {
-        match self {
-            Self::Testnet => crate::consts::TESTNET_ARCHIVAL_API_SERVER_URL
-                .parse()
-                .unwrap(),
-            Self::Mainnet => crate::consts::MAINNET_ARCHIVAL_API_SERVER_URL
-                .parse()
-                .unwrap(),
-            Self::Betanet => crate::consts::BETANET_ARCHIVAL_API_SERVER_URL
-                .parse()
-                .unwrap(),
-            Self::Custom { url } => url.clone(),
-        }
-    }
-
-    pub fn wallet_url(&self) -> url::Url {
-        match self {
-            Self::Testnet => crate::consts::TESTNET_WALLET_URL.parse().unwrap(),
-            Self::Mainnet => crate::consts::MAINNET_WALLET_URL.parse().unwrap(),
-            Self::Betanet => crate::consts::BETANET_WALLET_URL.parse().unwrap(),
-            Self::Custom { url } => url.clone(),
-        }
-    }
-
-    pub fn transaction_explorer(&self) -> url::Url {
-        match self {
-            Self::Testnet => crate::consts::TESTNET_TRANSACTION_URL.parse().unwrap(),
-            Self::Mainnet => crate::consts::MAINNET_TRANSACTION_URL.parse().unwrap(),
-            Self::Betanet => crate::consts::BETANET_TRANSACTION_URL.parse().unwrap(),
-            Self::Custom { url } => url.clone(),
-        }
-    }
-
-    pub fn dir_name(&self) -> &str {
-        match self {
-            Self::Testnet => crate::consts::DIR_NAME_TESTNET,
-            Self::Mainnet => crate::consts::DIR_NAME_MAINNET,
-            Self::Betanet => crate::consts::DIR_NAME_BETANET,
-            Self::Custom { url: _ } => crate::consts::DIR_NAME_CUSTOM,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct AccountTransferAllowance {
     account_id: near_primitives::types::AccountId,
@@ -496,34 +369,34 @@ impl AccountTransferAllowance {
     }
 }
 
-pub fn get_account_transfer_allowance(
-    connection_config: &ConnectionConfig,
+pub async fn get_account_transfer_allowance(
+    network_config: crate::config::NetworkConfig,
     account_id: near_primitives::types::AccountId,
+    block_reference: BlockReference,
 ) -> color_eyre::eyre::Result<AccountTransferAllowance> {
-    let account_view =
-        if let Some(account_view) = get_account_state(connection_config, account_id.clone())? {
-            account_view
-        } else {
-            return Ok(AccountTransferAllowance {
-                account_id,
-                account_liquid_balance: NearBalance::from_yoctonear(0),
-                account_locked_balance: NearBalance::from_yoctonear(0),
-                storage_stake: NearBalance::from_yoctonear(0),
-                pessimistic_transaction_fee: NearBalance::from_yoctonear(0),
-            });
-        };
-    let storage_amount_per_byte = tokio::runtime::Runtime::new().unwrap()
-        .block_on(async {
-            near_jsonrpc_client::JsonRpcClient::connect(connection_config.rpc_url())
-                .call(
-                    near_jsonrpc_client::methods::EXPERIMENTAL_protocol_config::RpcProtocolConfigRequest {
-                        block_reference: near_primitives::types::BlockReference::Finality(
-                            near_primitives::types::Finality::Final,
-                        ),
-                    },
-                )
-                .await
-        })
+    let account_view = if let Some(account_view) =
+        get_account_state(network_config.clone(), account_id.clone(), block_reference).await?
+    {
+        account_view
+    } else {
+        return Ok(AccountTransferAllowance {
+            account_id,
+            account_liquid_balance: NearBalance::from_yoctonear(0),
+            account_locked_balance: NearBalance::from_yoctonear(0),
+            storage_stake: NearBalance::from_yoctonear(0),
+            pessimistic_transaction_fee: NearBalance::from_yoctonear(0),
+        });
+    };
+    let storage_amount_per_byte = network_config
+        .json_rpc_client()?
+        .call(
+            near_jsonrpc_client::methods::EXPERIMENTAL_protocol_config::RpcProtocolConfigRequest {
+                block_reference: near_primitives::types::BlockReference::Finality(
+                    near_primitives::types::Finality::Final,
+                ),
+            },
+        )
+        .await
         .map_err(|err| color_eyre::Report::msg(format!("RpcError: {:?}", err)))?
         .runtime_config
         .storage_amount_per_byte;
@@ -542,18 +415,23 @@ pub fn get_account_transfer_allowance(
     })
 }
 
-pub fn get_account_state(
-    connection_config: &ConnectionConfig,
+pub async fn get_account_state(
+    network_config: crate::config::NetworkConfig,
     account_id: near_primitives::types::AccountId,
+    block_reference: BlockReference,
 ) -> color_eyre::eyre::Result<Option<near_primitives::views::AccountView>> {
-    let query_view_method_response = tokio::runtime::Runtime::new().unwrap().block_on(async {
-        near_jsonrpc_client::JsonRpcClient::connect(connection_config.rpc_url())
-            .call(near_jsonrpc_client::methods::query::RpcQueryRequest {
-                block_reference: near_primitives::types::Finality::Final.into(),
-                request: near_primitives::views::QueryRequest::ViewAccount { account_id },
-            })
-            .await
-    });
+    let json_rpc_client = match block_reference {
+        BlockReference::Finality(_) | BlockReference::BlockId(_) => {
+            network_config.json_rpc_client()?
+        }
+        BlockReference::SyncCheckpoint(_) => todo!(),
+    };
+    let query_view_method_response = json_rpc_client
+        .call(near_jsonrpc_client::methods::query::RpcQueryRequest {
+            block_reference,
+            request: near_primitives::views::QueryRequest::ViewAccount { account_id },
+        })
+        .await;
     match query_view_method_response {
         Ok(rpc_query_response) => {
             let account_view =
@@ -563,36 +441,53 @@ pub fn get_account_state(
                 {
                     result
                 } else {
-                    return Err(color_eyre::Report::msg(format!("Error call result")));
+                    return Err(color_eyre::Report::msg("Error call result".to_string()));
                 };
-            Ok(Some(account_view.into()))
+            Ok(Some(account_view))
         }
-        Err(_) => return Ok(None),
+        Err(_) => Ok(None),
     }
 }
 
-/// Returns true if the account ID length is 64 characters and it's a hex representation. This is used to check the implicit account.
-pub fn is_64_len_hex(account_id: impl AsRef<str>) -> bool {
-    let account_id = account_id.as_ref();
-    account_id.len() == 64
-        && account_id
-            .as_bytes()
-            .iter()
-            .all(|b| matches!(b, b'a'..=b'f' | b'0'..=b'9'))
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct KeyPairProperties {
-    pub seed_phrase_hd_path: slip10::BIP32Path,
+    pub seed_phrase_hd_path: crate::types::slip10::BIP32Path,
     pub master_seed_phrase: String,
     pub implicit_account_id: near_primitives::types::AccountId,
+    #[serde(rename = "public_key")]
     pub public_key_str: String,
+    #[serde(rename = "private_key")]
     pub secret_keypair_str: String,
 }
 
+pub fn get_public_key_from_seed_phrase(
+    seed_phrase_hd_path: slip10::BIP32Path,
+    master_seed_phrase: &str,
+) -> color_eyre::eyre::Result<near_crypto::PublicKey> {
+    let master_seed = bip39::Mnemonic::parse(master_seed_phrase)?.to_seed("");
+    let derived_private_key =
+        slip10::derive_key_from_path(&master_seed, slip10::Curve::Ed25519, &seed_phrase_hd_path)
+            .map_err(|err| {
+                color_eyre::Report::msg(format!(
+                    "Failed to derive a key from the master key: {}",
+                    err
+                ))
+            })?;
+    let secret_keypair = {
+        let secret = ed25519_dalek::SecretKey::from_bytes(&derived_private_key.key)?;
+        let public = ed25519_dalek::PublicKey::from(&secret);
+        ed25519_dalek::Keypair { secret, public }
+    };
+    let public_key_str = format!(
+        "ed25519:{}",
+        bs58::encode(&secret_keypair.public).into_string()
+    );
+    Ok(near_crypto::PublicKey::from_str(&public_key_str)?)
+}
+
 pub async fn generate_keypair() -> color_eyre::eyre::Result<KeyPairProperties> {
-    let generate_keypair: crate::commands::utils_command::generate_keypair_subcommand::CliGenerateKeypair =
-        crate::commands::utils_command::generate_keypair_subcommand::CliGenerateKeypair::default();
+    let generate_keypair: crate::utils_command::generate_keypair_subcommand::CliGenerateKeypair =
+        crate::utils_command::generate_keypair_subcommand::CliGenerateKeypair::default();
     let (master_seed_phrase, master_seed) =
         if let Some(master_seed_phrase) = generate_keypair.master_seed_phrase.as_deref() {
             (
@@ -609,7 +504,7 @@ pub async fn generate_keypair() -> color_eyre::eyre::Result<KeyPairProperties> {
     let derived_private_key = slip10::derive_key_from_path(
         &master_seed,
         slip10::Curve::Ed25519,
-        &generate_keypair.seed_phrase_hd_path,
+        &generate_keypair.seed_phrase_hd_path.clone().into(),
     )
     .map_err(|err| {
         color_eyre::Report::msg(format!(
@@ -1000,7 +895,7 @@ pub fn handler_invalid_tx_error(
                     format!("Error: Transaction method name <{}> isn't allowed by the access key.", method_name)
                 },
                 near_primitives::errors::InvalidAccessKeyError::RequiresFullAccess => {
-                    format!("Error: Transaction requires a full permission access key.")
+                    "Error: Transaction requires a full permission access key.".to_string()
                 },
                 near_primitives::errors::InvalidAccessKeyError::NotEnoughAllowance{account_id, public_key, allowance, cost} => {
                     format!("Error: Access Key <{}> for account <{}> does not have enough allowance ({}) to cover transaction cost ({}).",
@@ -1011,7 +906,7 @@ pub fn handler_invalid_tx_error(
                     )
                 },
                 near_primitives::errors::InvalidAccessKeyError::DepositWithFunctionCall => {
-                    format!("Error: Having a deposit with a function call action is not allowed with a function call access key.")
+                    "Error: Having a deposit with a function call action is not allowed with a function call access key.".to_string()
                 }
             }
         },
@@ -1031,7 +926,7 @@ pub fn handler_invalid_tx_error(
             format!("Error: TX receiver ID ({}) is not in a valid format or does not satisfy requirements\nSee \"near_runtime_utils::is_valid_account_id\".", receiver_id)
         },
         near_primitives::errors::InvalidTxError::InvalidSignature => {
-            format!("Error: TX signature is not valid")
+            "Error: TX signature is not valid".to_string()
         },
         near_primitives::errors::InvalidTxError::NotEnoughBalance {signer_id, balance, cost} => {
             format!("Error: Account <{}> does not have enough balance ({}) to cover TX cost ({}).",
@@ -1047,18 +942,18 @@ pub fn handler_invalid_tx_error(
             )
         },
         near_primitives::errors::InvalidTxError::CostOverflow => {
-            format!("Error: An integer overflow occurred during transaction cost estimation.")
+            "Error: An integer overflow occurred during transaction cost estimation.".to_string()
         },
         near_primitives::errors::InvalidTxError::InvalidChain => {
-            format!("Error: Transaction parent block hash doesn't belong to the current chain.")
+            "Error: Transaction parent block hash doesn't belong to the current chain.".to_string()
         },
         near_primitives::errors::InvalidTxError::Expired => {
-            format!("Error: Transaction has expired.")
+            "Error: Transaction has expired.".to_string()
         },
         near_primitives::errors::InvalidTxError::ActionsValidation(actions_validation_error) => {
             match actions_validation_error {
                 near_primitives::errors::ActionsValidationError::DeleteActionMustBeFinal => {
-                    format!("Error: The delete action must be the final action in transaction.")
+                    "Error: The delete action must be the final action in transaction.".to_string()
                 },
                 near_primitives::errors::ActionsValidationError::TotalPrepaidGasExceeded {total_prepaid_gas, limit} => {
                     format!("Error: The total prepaid gas ({}) for all given actions exceeded the limit ({}).",
@@ -1076,7 +971,7 @@ pub fn handler_invalid_tx_error(
                     format!("Error: The length ({}) of some method name exceeded the limit ({}) in a Add Key action.", length, limit)
                 },
                 near_primitives::errors::ActionsValidationError::IntegerOverflow => {
-                    format!("Error: Integer overflow.")
+                    "Error: Integer overflow.".to_string()
                 },
                 near_primitives::errors::ActionsValidationError::InvalidAccountId {account_id} => {
                     format!("Error: Invalid account ID <{}>.", account_id)
@@ -1094,7 +989,7 @@ pub fn handler_invalid_tx_error(
                     format!("Error: An attempt to stake with a public key <{}> that is not convertible to ristretto.", public_key)
                 },
                 near_primitives::errors::ActionsValidationError::FunctionCallZeroAttachedGas => {
-                    format!("Error: The attached amount of gas in a FunctionCall action has to be a positive number.")
+                    "Error: The attached amount of gas in a FunctionCall action has to be a positive number.".to_string()
                 }
             }
         },
@@ -1118,7 +1013,7 @@ pub fn print_transaction_error(tx_execution_error: near_primitives::errors::TxEx
 
 pub fn print_transaction_status(
     transaction_info: near_primitives::views::FinalExecutionOutcomeView,
-    network_connection_config: Option<crate::common::ConnectionConfig>,
+    network_config: crate::config::NetworkConfig,
 ) {
     match transaction_info.status {
         near_primitives::views::FinalExecutionStatus::NotStarted
@@ -1130,42 +1025,52 @@ pub fn print_transaction_status(
             print_value_successful_transaction(transaction_info.clone())
         }
     };
-    let transaction_explorer: url::Url = match network_connection_config {
-        Some(connection_config) => connection_config.transaction_explorer(),
-        None => unreachable!("Error"),
-    };
     println!("Transaction ID: {id}\nTo see the transaction in the transaction explorer, please open this url in your browser:\n{path}{id}\n",
         id=transaction_info.transaction_outcome.id,
-        path=transaction_explorer
+        path=network_config.explorer_transaction_url
     );
 }
 
-pub async fn save_access_key_to_keychain(
-    network_connection_config: Option<crate::common::ConnectionConfig>,
+#[cfg(target_os = "macos")]
+pub async fn save_access_key_to_macos_keychain(
+    network_config: crate::config::NetworkConfig,
     key_pair_properties: crate::common::KeyPairProperties,
     account_id: &str,
 ) -> crate::CliResult {
-    let buf = format!(
-        "{}",
-        serde_json::json!({
-            "master_seed_phrase": key_pair_properties.master_seed_phrase,
-            "seed_phrase_hd_path": key_pair_properties.seed_phrase_hd_path.to_string(),
-            "account_id": account_id,
-            "public_key": key_pair_properties.public_key_str,
-            "private_key": key_pair_properties.secret_keypair_str,
-        })
-    );
-    let home_dir = dirs::home_dir().expect("Impossible to get your home dir!");
-    let dir_name = match &network_connection_config {
-        Some(connection_config) => connection_config.dir_name(),
-        None => crate::consts::DIR_NAME_KEY_CHAIN,
-    };
+    let buf = serde_json::to_string(&key_pair_properties)?;
+    let keychain = security_framework::os::macos::keychain::SecKeychain::default()
+        .map_err(|err| color_eyre::Report::msg(format!("Failed to open keychain: {:?}", err)))?;
+    let service_name = std::borrow::Cow::Owned(format!(
+        "near-{}-{}",
+        network_config.network_name, account_id
+    ));
+    keychain
+        .set_generic_password(
+            &service_name,
+            &format!("{}:{}", account_id, key_pair_properties.public_key_str),
+            buf.as_bytes(),
+        )
+        .map_err(|err| {
+            color_eyre::Report::msg(format!("Failed to save password to keychain: {:?}", err))
+        })?;
+    println!("The data for the access key is saved in macOS Keychain");
+    Ok(())
+}
+
+pub async fn save_access_key_to_keychain(
+    network_config: crate::config::NetworkConfig,
+    credentials_home_dir: std::path::PathBuf,
+    key_pair_properties: crate::common::KeyPairProperties,
+    account_id: &str,
+) -> crate::CliResult {
+    let buf = serde_json::to_string(&key_pair_properties)?;
+    let dir_name = network_config.network_name.as_str();
     let file_with_key_name: std::path::PathBuf = format!(
         "{}.json",
-        key_pair_properties.public_key_str.replace(":", "_")
+        key_pair_properties.public_key_str.replace(':', "_")
     )
     .into();
-    let mut path_with_key_name = std::path::PathBuf::from(&home_dir);
+    let mut path_with_key_name = std::path::PathBuf::from(&credentials_home_dir);
     path_with_key_name.push(dir_name);
     path_with_key_name.push(account_id);
     std::fs::create_dir_all(&path_with_key_name)?;
@@ -1175,12 +1080,12 @@ pub async fn save_access_key_to_keychain(
         .write(buf.as_bytes())
         .map_err(|err| color_eyre::Report::msg(format!("Failed to write to file: {:?}", err)))?;
     println!(
-        "The data for the access key is saved in a file {}",
-        &path_with_key_name.display()
+        "The data for the access key is saved in a file {:?}",
+        &path_with_key_name
     );
 
     let file_with_account_name: std::path::PathBuf = format!("{}.json", account_id).into();
-    let mut path_with_account_name = std::path::PathBuf::from(&home_dir);
+    let mut path_with_account_name = std::path::PathBuf::from(&credentials_home_dir);
     path_with_account_name.push(dir_name);
     path_with_account_name.push(file_with_account_name);
     if path_with_account_name.exists() {
@@ -1196,10 +1101,41 @@ pub async fn save_access_key_to_keychain(
                 color_eyre::Report::msg(format!("Failed to write to file: {:?}", err))
             })?;
         println!(
-            "The data for the access key is saved in a file {}",
-            &path_with_account_name.display()
+            "The data for the access key is saved in a file {:?}",
+            &path_with_account_name
         );
     };
+    Ok(())
+}
+
+pub fn get_config_toml() -> color_eyre::eyre::Result<crate::config::Config> {
+    if let Some(mut path_config_toml) = dirs::config_dir() {
+        path_config_toml.push("near-cli");
+        std::fs::create_dir_all(&path_config_toml)?;
+        path_config_toml.push("config.toml");
+
+        if !path_config_toml.is_file() {
+            write_config_toml(crate::config::Config::default())?;
+        };
+        let config_toml = std::fs::read_to_string(path_config_toml)?;
+        Ok(toml::from_str(&config_toml)?)
+    } else {
+        Ok(crate::config::Config::default())
+    }
+}
+
+pub fn write_config_toml(config: crate::config::Config) -> CliResult {
+    let config_toml = toml::to_string(&config)?;
+    let mut path_config_toml = dirs::config_dir().expect("Impossible to get your config dir!");
+    path_config_toml.push("near-cli/config.toml");
+    std::fs::File::create(&path_config_toml)
+        .map_err(|err| color_eyre::Report::msg(format!("Failed to create file: {:?}", err)))?
+        .write(config_toml.as_bytes())
+        .map_err(|err| color_eyre::Report::msg(format!("Failed to write to file: {:?}", err)))?;
+    println!(
+        "Configuration data is stored in a file {:?}",
+        &path_config_toml
+    );
     Ok(())
 }
 
@@ -1213,8 +1149,7 @@ pub fn try_external_subcommand_execution(error: clap::Error) -> CliResult {
     };
     let is_top_level_command_known = crate::commands::TopLevelCommandDiscriminants::iter()
         .map(|x| format!("{:?}", &x).to_lowercase())
-        .find(|x| x == &subcommand)
-        .is_some();
+        .any(|x| x == subcommand);
     if is_top_level_command_known {
         error.exit()
     }
@@ -1246,7 +1181,7 @@ pub fn try_external_subcommand_execution(error: clap::Error) -> CliResult {
             return Err(color_eyre::eyre::eyre!("perror occurred, code: {}", code));
         }
     }
-    return Err(color_eyre::eyre::eyre!(err));
+    Err(color_eyre::eyre::eyre!(err))
 }
 
 fn is_executable<P: AsRef<std::path::Path>>(path: P) -> bool {
@@ -1271,10 +1206,11 @@ fn path_directories() -> Vec<std::path::PathBuf> {
 
 pub async fn display_account_info(
     account_id: AccountId,
-    conf: &ConnectionConfig,
+    network_config: crate::config::NetworkConfig,
     block_ref: BlockReference,
 ) -> crate::CliResult {
-    let resp = near_jsonrpc_client::JsonRpcClient::connect(conf.archival_rpc_url())
+    let resp = network_config
+        .json_rpc_client()?
         .call(near_jsonrpc_client::methods::query::RpcQueryRequest {
             block_reference: block_ref,
             request: QueryRequest::ViewAccount {
@@ -1317,10 +1253,11 @@ pub async fn display_account_info(
 
 pub async fn display_access_key_list(
     account_id: AccountId,
-    conf: &ConnectionConfig,
+    network_config: crate::config::NetworkConfig,
     block_ref: BlockReference,
 ) -> crate::CliResult {
-    let resp = near_jsonrpc_client::JsonRpcClient::connect(conf.archival_rpc_url())
+    let resp = network_config
+        .json_rpc_client()?
         .call(near_jsonrpc_client::methods::query::RpcQueryRequest {
             block_reference: block_ref,
             request: QueryRequest::ViewAccessKeyList { account_id },
@@ -1335,7 +1272,7 @@ pub async fn display_access_key_list(
 
     let view = match resp.kind {
         near_jsonrpc_primitives::types::query::QueryResponseKind::AccessKeyList(result) => result,
-        _ => return Err(color_eyre::Report::msg(format!("Error call result"))),
+        _ => return Err(color_eyre::Report::msg("Error call result".to_string())),
     };
 
     println!("Number of access keys: {}", view.keys.len());
@@ -1352,7 +1289,7 @@ pub async fn display_access_key_list(
                         "with an allowance of {}",
                         NearBalance::from_yoctonear(*amount)
                     ),
-                    None => format!("with no limit"),
+                    None => "with no limit".to_string(),
                 };
                 format!(
                     "only do {:?} function calls on {} {}",
@@ -1370,6 +1307,17 @@ pub async fn display_access_key_list(
         );
     }
     Ok(())
+}
+
+pub fn input_network_name(context: &crate::GlobalContext) -> color_eyre::eyre::Result<String> {
+    let variants = context.0.networks.keys().collect::<Vec<_>>();
+    let select_submit = Select::with_theme(&ColorfulTheme::default())
+        .with_prompt("What is the name of the network?")
+        .items(&variants)
+        .default(0)
+        .interact()
+        .unwrap();
+    Ok(variants[select_submit].to_string())
 }
 
 #[cfg(test)]
