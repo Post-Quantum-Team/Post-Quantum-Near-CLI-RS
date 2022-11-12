@@ -152,7 +152,7 @@ impl SignerAccountId {
     ) -> crate::CliResult {
         let prepopulated_unsigned_transaction = near_primitives::transaction::Transaction {
             signer_id: self.signer_account_id.clone().into(),
-            public_key: near_crypto::PublicKey::empty(near_crypto::KeyType::ED25519),
+            public_key: near_crypto::PublicKey::empty(near_crypto::KeyType::FALCON512),
             nonce: 0,
             receiver_id: function_call_action
                 .contract_account_id

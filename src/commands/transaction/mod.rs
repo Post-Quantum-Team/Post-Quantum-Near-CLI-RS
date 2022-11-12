@@ -57,7 +57,7 @@ impl TransactionAccounts {
     pub async fn process(&self, config: crate::config::Config) -> crate::CliResult {
         let prepopulated_unsigned_transaction = near_primitives::transaction::Transaction {
             signer_id: self.sender_account_id.clone().into(),
-            public_key: near_crypto::PublicKey::empty(near_crypto::KeyType::ED25519),
+            public_key: near_crypto::PublicKey::empty(near_crypto::KeyType::FALCON512),
             nonce: 0,
             receiver_id: self.receiver_account_id.clone().into(),
             block_hash: Default::default(),

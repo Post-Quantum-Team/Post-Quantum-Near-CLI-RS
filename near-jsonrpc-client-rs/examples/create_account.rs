@@ -129,7 +129,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let is_sub_account = new_account_id.is_sub_account_of(&signer.account_id);
-    let new_key_pair = near_crypto::SecretKey::from_random(near_crypto::KeyType::ED25519);
+    let new_key_pair = near_crypto::SecretKey::from_random(near_crypto::KeyType::FALCON512);
 
     let transaction = if is_sub_account {
         Transaction {

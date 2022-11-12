@@ -56,6 +56,18 @@ impl Default for Config {
                 api_key: None,
             },
         );
+        networks.insert(
+            "custom".to_string(),
+            NetworkConfig {
+                network_name: "custom".to_string(),
+                rpc_url: "http://127.0.0.1:3030".parse().unwrap(),
+                wallet_url: "http://127.0.0.1:3030".parse().unwrap(),
+                explorer_transaction_url: "http://127.0.0.1:3030/transactions/"
+                    .parse()
+                    .unwrap(),
+                api_key: None,
+            },
+        );
         Self {
             credentials_home_dir,
             networks,
