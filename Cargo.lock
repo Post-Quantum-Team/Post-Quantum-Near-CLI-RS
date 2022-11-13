@@ -1312,6 +1312,7 @@ dependencies = [
  "interactive_clap_derive",
  "linked-hash-map",
  "near-crypto",
+ "near-falcon512",
  "near-jsonrpc-client",
  "near-jsonrpc-primitives",
  "near-ledger",
@@ -1360,7 +1361,7 @@ dependencies = [
 [[package]]
 name = "near-falcon512"
 version = "0.0.0"
-source = "git+https://github.com/Post-Quantum-Team/Post-Quantum-Near-Falcon512#b9c6a87ea61b9de1561571841e0010fe92a5255e"
+source = "git+https://github.com/Post-Quantum-Team/Post-Quantum-Near-Falcon512#79e0fb6ed45fc097303cbeb71970771f6c952b1e"
 dependencies = [
  "cc",
  "glob",
