@@ -43,11 +43,11 @@ color-eyre = "0.6"
 near-ledger = { version = "0.2.0", optional = true }
 
 
-near-crypto = { path = "./core/crypto" }
-near-primitives = { path = "./core/primitives" }
-near-jsonrpc-client = { path = "./near-jsonrpc-client-rs" }
-near-jsonrpc-primitives = { path = "./chain/jsonrpc-primitives" }
-near-falcon512 = { path = "../Post-Quantum-pqcrypto-falcon-near/near-falcon512" }
+near-crypto = { git = "https://github.com/Post-Quantum-Team/Post-Quantum-Nearcore", branch = "crates-0.15.0-Post-Quantum" }
+near-primitives = { git = "https://github.com/Post-Quantum-Team/Post-Quantum-Nearcore", branch = "crates-0.15.0-Post-Quantum" }
+near-jsonrpc-client = { git = "https://github.com/Post-Quantum-Team/Post-Quantum-near-jsonrpc-client-rs", branch="v0.4.0" }
+near-jsonrpc-primitives = { git = "https://github.com/Post-Quantum-Team/Post-Quantum-Nearcore", branch = "crates-0.15.0-Post-Quantum" }
+near-falcon512 = { git = "https://github.com/Post-Quantum-Team/Post-Quantum-Near-Falcon512" }
 
 interactive_clap = { git = "https://github.com/FroVolod/interactive-clap", rev="b6294f2bd0a5133e71d822dc3e982c23755cd61b" }
 interactive_clap_derive = { git = "https://github.com/FroVolod/interactive-clap", rev="b6294f2bd0a5133e71d822dc3e982c23755cd61b" }

@@ -1077,9 +1077,9 @@ pub async fn save_access_key_to_keychain(
     let dir_name = network_config.network_name.as_str();
     
     let mut file_with_key_name = key_pair_properties.public_key_str.replace(':', "_");
-    if file_with_key_name.len() > 32 {
+    if file_with_key_name.len() > 64 {
         // Falcon-512 pubkey is too long for filename, so the first 32-bytes will be took
-        file_with_key_name = file_with_key_name[..32].to_string();
+        file_with_key_name = file_with_key_name[..64].to_string();
     }
     let file_with_key_name: std::path::PathBuf = format!(
         "{}.json",
