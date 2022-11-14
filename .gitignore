@@ -4,8 +4,3 @@
 near-cli
 *.wasm
 *.json
-near-core
-tools
-deleted_crates.txt
-core
-chain
