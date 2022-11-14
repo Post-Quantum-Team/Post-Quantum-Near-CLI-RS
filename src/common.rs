@@ -464,10 +464,10 @@ pub fn get_public_key_from_seed_phrase(
     _seed_phrase_hd_path: slip10::BIP32Path,
     master_seed_phrase: &str,
 ) -> color_eyre::eyre::Result<near_crypto::PublicKey> {
-    //let master_seed = bip39::Mnemonic::parse(master_seed_phrase)?.to_seed("");
+    let master_seed = bip39::Mnemonic::parse(master_seed_phrase)?.to_seed("");
     let public_key = {
         let key_type = near_crypto::KeyType::FALCON512;
-        let secret = near_crypto::SecretKey::from_seed(key_type, &master_seed_phrase);
+        let secret = near_crypto::SecretKey::from_seed(key_type, &hex::encode(master_seed));
         //ed25519_dalek::SecretKey::from_bytes(&derived_private_key.key)?;
         let public = near_crypto::PublicKey::from(secret.public_key());
         public
