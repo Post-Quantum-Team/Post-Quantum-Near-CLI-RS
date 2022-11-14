@@ -47,7 +47,7 @@ near-crypto = { path = "./core/crypto" }
 near-primitives = { path = "./core/primitives" }
 near-jsonrpc-client = { path = "./near-jsonrpc-client-rs" }
 near-jsonrpc-primitives = { path = "./chain/jsonrpc-primitives" }
-near-falcon512 = { git = "https://github.com/Post-Quantum-Team/Post-Quantum-Near-Falcon512" }
+near-falcon512 = { path = "../Post-Quantum-pqcrypto-falcon-near/near-falcon512" }
 
 interactive_clap = { git = "https://github.com/FroVolod/interactive-clap", rev="b6294f2bd0a5133e71d822dc3e982c23755cd61b" }
 interactive_clap_derive = { git = "https://github.com/FroVolod/interactive-clap", rev="b6294f2bd0a5133e71d822dc3e982c23755cd61b" }

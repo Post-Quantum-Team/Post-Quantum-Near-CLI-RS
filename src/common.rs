@@ -521,7 +521,7 @@ pub async fn generate_keypair() -> color_eyre::eyre::Result<KeyPairProperties> {
 
     let (secret_key, public_key) = {
         let key_type = near_crypto::KeyType::FALCON512;
-        let secret = near_crypto::SecretKey::from_seed(key_type, &master_seed_phrase);
+        let secret = near_crypto::SecretKey::from_seed(key_type, &hex::encode(master_seed));
         let public = near_crypto::PublicKey::from(secret.public_key());
         (secret, public)
     };
