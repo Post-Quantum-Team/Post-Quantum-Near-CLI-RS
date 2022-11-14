@@ -461,10 +461,10 @@ pub struct KeyPairProperties {
 }
 
 pub fn get_public_key_from_seed_phrase(
-    seed_phrase_hd_path: slip10::BIP32Path,
+    _seed_phrase_hd_path: slip10::BIP32Path,
     master_seed_phrase: &str,
 ) -> color_eyre::eyre::Result<near_crypto::PublicKey> {
-    let master_seed = bip39::Mnemonic::parse(master_seed_phrase)?.to_seed("");
+    //let master_seed = bip39::Mnemonic::parse(master_seed_phrase)?.to_seed("");
     let public_key = {
         let key_type = near_crypto::KeyType::FALCON512;
         let secret = near_crypto::SecretKey::from_seed(key_type, &master_seed_phrase);
@@ -482,9 +482,11 @@ pub fn get_public_key_from_seed_phrase(
                 ))
             })?;
     */
+    
+    let falcon_pub_key = public_key.unwrap_as_falcon512();
     let public_key_str = format!(
         "falcon512:{}",
-        bs58::encode(&public_key.to_string()).into_string()
+        bs58::encode(falcon_pub_key.0).into_string()
     );
     Ok(near_crypto::PublicKey::from_str(&public_key_str)?)
 }
@@ -520,22 +522,22 @@ pub async fn generate_keypair() -> color_eyre::eyre::Result<KeyPairProperties> {
     let (secret_key, public_key) = {
         let key_type = near_crypto::KeyType::FALCON512;
         let secret = near_crypto::SecretKey::from_seed(key_type, &master_seed_phrase);
-        //ed25519_dalek::SecretKey::from_bytes(&derived_private_key.key)?;
         let public = near_crypto::PublicKey::from(secret.public_key());
         (secret, public)
     };
 
     let falcon_pub_key = public_key.unwrap_as_falcon512();
+    let falcon_priv_key = secret_key.unwrap_as_falcon512();
 
     let implicit_account_id =
         near_primitives::types::AccountId::try_from(hex::encode(falcon_pub_key.0))?;
     let public_key_str = format!(
         "falcon512:{}",
-        bs58::encode(public_key.to_string()).into_string()
+        bs58::encode(falcon_pub_key.0).into_string()
     );
     let secret_keypair_str = format!(
         "falcon512:{}",
-        bs58::encode(secret_key.to_string()).into_string()
+        bs58::encode(falcon_priv_key.0).into_string()
     );
     let key_pair_properties: KeyPairProperties = KeyPairProperties {
         seed_phrase_hd_path: generate_keypair.seed_phrase_hd_path,
@@ -1073,16 +1075,23 @@ pub async fn save_access_key_to_keychain(
 ) -> crate::CliResult {
     let buf = serde_json::to_string(&key_pair_properties)?;
     let dir_name = network_config.network_name.as_str();
+    
+    let mut file_with_key_name = key_pair_properties.public_key_str.replace(':', "_");
+    if file_with_key_name.len() > 32 {
+        // Falcon-512 pubkey is too long for filename, so the first 32-bytes will be took
+        file_with_key_name = file_with_key_name[..32].to_string();
+    }
     let file_with_key_name: std::path::PathBuf = format!(
         "{}.json",
-        key_pair_properties.public_key_str.replace(':', "_")
+        file_with_key_name
     )
-    .into();
+    .into();    
     let mut path_with_key_name = std::path::PathBuf::from(&credentials_home_dir);
     path_with_key_name.push(dir_name);
     path_with_key_name.push(account_id);
     std::fs::create_dir_all(&path_with_key_name)?;
     path_with_key_name.push(file_with_key_name);
+    println!("Filename = {}", &path_with_key_name.display());
     std::fs::File::create(&path_with_key_name)
         .map_err(|err| color_eyre::Report::msg(format!("Failed to create file: {:?}", err)))?
         .write(buf.as_bytes())
