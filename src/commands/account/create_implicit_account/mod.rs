@@ -10,8 +10,8 @@ pub struct ImplicitAccount {
 }
 
 impl ImplicitAccount {
-    pub async fn process(&self) -> crate::CliResult {
-        self.mode.process().await
+    pub async fn process(&self, key_type: near_crypto::KeyType) -> crate::CliResult {
+        self.mode.process(key_type).await
     }
 }
 
@@ -34,13 +34,13 @@ pub enum Mode {
 }
 
 impl Mode {
-    pub async fn process(&self) -> crate::CliResult {
+    pub async fn process(&self, key_type: near_crypto::KeyType) -> crate::CliResult {
         let mut file_path = std::path::PathBuf::new();
         let mut file_name = std::path::PathBuf::new();
         let mut buf = String::new();
         match self {
             Mode::UseAutoGeneration(save_implicit_account) => {
-                let key_pair_properties = crate::common::generate_keypair().await?;
+                let key_pair_properties = crate::common::generate_keypair(key_type).await?;
                 buf.push_str(
                     &serde_json::json!({
                         "master_seed_phrase": key_pair_properties.master_seed_phrase,

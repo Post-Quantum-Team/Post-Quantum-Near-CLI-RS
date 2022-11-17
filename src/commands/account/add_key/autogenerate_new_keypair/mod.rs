@@ -19,9 +19,10 @@ impl GenerateKeypair {
         config: crate::config::Config,
         prepopulated_unsigned_transaction: near_primitives::transaction::Transaction,
         permission: near_primitives::account::AccessKeyPermission,
+        key_type: near_crypto::KeyType,
     ) -> crate::CliResult {
         self.save_mode
-            .process(config, prepopulated_unsigned_transaction, permission)
+            .process(config, prepopulated_unsigned_transaction, permission, key_type)
             .await
     }
 }
@@ -55,9 +56,10 @@ impl SaveMode {
         config: crate::config::Config,
         prepopulated_unsigned_transaction: near_primitives::transaction::Transaction,
         permission: near_primitives::account::AccessKeyPermission,
+        key_type: near_crypto::KeyType,
     ) -> crate::CliResult {
         let key_pair_properties: crate::common::KeyPairProperties =
-            crate::common::generate_keypair().await?;
+            crate::common::generate_keypair(key_type).await?;
         let access_key: near_primitives::account::AccessKey = near_primitives::account::AccessKey {
             nonce: 0,
             permission,

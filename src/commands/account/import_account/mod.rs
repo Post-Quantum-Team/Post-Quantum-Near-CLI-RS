@@ -10,18 +10,19 @@ pub struct Login {
 }
 
 impl Login {
-    pub async fn process(&self, config: crate::config::Config) -> crate::CliResult {
+    pub async fn process(&self, config: crate::config::Config, key_type: near_crypto::KeyType) -> crate::CliResult {
         let network_config = self.network_config.get_network_config(config.clone());
-        login(network_config, config.credentials_home_dir).await
+        login(network_config, config.credentials_home_dir, key_type).await
     }
 }
 
 async fn login(
     network_config: crate::config::NetworkConfig,
     credentials_home_dir: std::path::PathBuf,
+    key_type: near_crypto::KeyType,
 ) -> crate::CliResult {
     let key_pair_properties: crate::common::KeyPairProperties =
-        crate::common::generate_keypair().await?;
+        crate::common::generate_keypair(key_type).await?;
     let mut url: url::Url = network_config.wallet_url.join("login/")?;
     url.query_pairs_mut()
         .append_pair("title", "NEAR CLI")

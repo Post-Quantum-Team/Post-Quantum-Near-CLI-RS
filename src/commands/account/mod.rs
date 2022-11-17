@@ -74,10 +74,10 @@ impl AccountActions {
             Self::ListKeys(view_list_keys) => view_list_keys.process(config).await,
             Self::DeleteAccount(delete_account) => delete_account.process(config).await,
             Self::CreateSubaccount(sub_account) => sub_account.process(config).await,
-            Self::CreateImplicitAccount(implicit_account) => implicit_account.process().await,
-            Self::AddKey(add_key_command) => add_key_command.process(config).await,
+            Self::CreateImplicitAccount(implicit_account) => implicit_account.process(near_crypto::KeyType::FALCON512).await,
+            Self::AddKey(add_key_command) => add_key_command.process(config, near_crypto::KeyType::FALCON512).await,
             Self::DeleteKey(delete_key_command) => delete_key_command.process(config).await,
-            Self::ImportAccount(login) => login.process(config).await,
+            Self::ImportAccount(login) => login.process(config, near_crypto::KeyType::FALCON512).await,
         }
     }
 }

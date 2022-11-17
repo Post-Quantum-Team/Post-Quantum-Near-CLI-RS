@@ -461,37 +461,52 @@ pub struct KeyPairProperties {
 }
 
 pub fn get_public_key_from_seed_phrase(
-    _seed_phrase_hd_path: slip10::BIP32Path,
+    seed_phrase_hd_path: slip10::BIP32Path,
     master_seed_phrase: &str,
+    key_type: near_crypto::KeyType
 ) -> color_eyre::eyre::Result<near_crypto::PublicKey> {
     let master_seed = bip39::Mnemonic::parse(master_seed_phrase)?.to_seed("");
-    let public_key = {
-        let key_type = near_crypto::KeyType::FALCON512;
-        let secret = near_crypto::SecretKey::from_seed(key_type, &hex::encode(master_seed));
-        //ed25519_dalek::SecretKey::from_bytes(&derived_private_key.key)?;
-        let public = near_crypto::PublicKey::from(secret.public_key());
-        public
-    };
-    /*
-    let derived_private_key =
-        slip10::derive_key_from_path(&master_seed, slip10::Curve::Ed25519, &seed_phrase_hd_path)
-            .map_err(|err| {
-                color_eyre::Report::msg(format!(
-                    "Failed to derive a key from the master key: {}",
-                    err
-                ))
-            })?;
-    */
-    
-    let falcon_pub_key = public_key.unwrap_as_falcon512();
-    let public_key_str = format!(
-        "falcon512:{}",
-        bs58::encode(falcon_pub_key.0).into_string()
-    );
-    Ok(near_crypto::PublicKey::from_str(&public_key_str)?)
+    match key_type {
+        near_crypto::KeyType::ED25519 => {
+            let derived_private_key =
+                slip10::derive_key_from_path(&master_seed, slip10::Curve::Ed25519, &seed_phrase_hd_path)
+                    .map_err(|err| {
+                        color_eyre::Report::msg(format!(
+                            "Failed to derive a key from the master key: {}",
+                            err
+                        ))
+                    })?;
+            let secret_keypair = {
+                let secret = ed25519_dalek::SecretKey::from_bytes(&derived_private_key.key)?;
+                let public = ed25519_dalek::PublicKey::from(&secret);
+                ed25519_dalek::Keypair { secret, public }
+            };
+            let public_key_str = format!(
+                "ed25519:{}",
+                bs58::encode(&secret_keypair.public).into_string()
+            );
+            Ok(near_crypto::PublicKey::from_str(&public_key_str)?)
+        }
+        near_crypto::KeyType::FALCON512 => {
+            let public_key = {
+                let key_type = near_crypto::KeyType::FALCON512;
+                let secret = near_crypto::SecretKey::from_seed(key_type, &hex::encode(master_seed));
+                let public = near_crypto::PublicKey::from(secret.public_key());
+                public
+            };
+
+            let falcon_pub_key = public_key.unwrap_as_falcon512();
+            let public_key_str = format!(
+                "falcon512:{}",
+                bs58::encode(falcon_pub_key.0).into_string()
+            );
+            Ok(near_crypto::PublicKey::from_str(&public_key_str)?)
+        }
+        _ => panic!("Wrong KeyType")
+    }
 }
 
-pub async fn generate_keypair() -> color_eyre::eyre::Result<KeyPairProperties> {
+pub async fn generate_keypair(key_type: near_crypto::KeyType) -> color_eyre::eyre::Result<KeyPairProperties> {
     let generate_keypair: crate::utils_command::generate_keypair_subcommand::CliGenerateKeypair =
         crate::utils_command::generate_keypair_subcommand::CliGenerateKeypair::default();
     let (master_seed_phrase, master_seed) =
@@ -519,34 +534,77 @@ pub async fn generate_keypair() -> color_eyre::eyre::Result<KeyPairProperties> {
         ))
     })?;*/
 
-    let (secret_key, public_key) = {
-        let key_type = near_crypto::KeyType::FALCON512;
-        let secret = near_crypto::SecretKey::from_seed(key_type, &hex::encode(master_seed));
-        let public = near_crypto::PublicKey::from(secret.public_key());
-        (secret, public)
-    };
+    match key_type {
+        near_crypto::KeyType::ED25519 => {
+            let derived_private_key = slip10::derive_key_from_path(
+                &master_seed,
+                slip10::Curve::Ed25519,
+                &generate_keypair.seed_phrase_hd_path.clone().into(),
+            )
+            .map_err(|err| {
+                color_eyre::Report::msg(format!(
+                    "Failed to derive a key from the master key: {}",
+                    err
+                ))
+            })?;
+        
+            let secret_keypair = {
+                let secret = ed25519_dalek::SecretKey::from_bytes(&derived_private_key.key)?;
+                let public = ed25519_dalek::PublicKey::from(&secret);
+                ed25519_dalek::Keypair { secret, public }
+            };
+        
+            let implicit_account_id =
+                near_primitives::types::AccountId::try_from(hex::encode(&secret_keypair.public))?;
+            let public_key_str = format!(
+                "ed25519:{}",
+                bs58::encode(&secret_keypair.public).into_string()
+            );
+            let secret_keypair_str = format!(
+                "ed25519:{}",
+                bs58::encode(secret_keypair.to_bytes()).into_string()
+            );
+            let key_pair_properties: KeyPairProperties = KeyPairProperties {
+                seed_phrase_hd_path: generate_keypair.seed_phrase_hd_path,
+                master_seed_phrase,
+                implicit_account_id,
+                public_key_str,
+                secret_keypair_str,
+            };
+            Ok(key_pair_properties)
+        }
+        near_crypto::KeyType::FALCON512 => {
+            let (secret_key, public_key) = {
+                let secret = near_crypto::SecretKey::from_seed(key_type, &hex::encode(master_seed));
+                let public = near_crypto::PublicKey::from(secret.public_key());
+                (secret, public)
+            };
+            
+            let falcon_pub_key = public_key.unwrap_as_falcon512();
+            let falcon_priv_key = secret_key.unwrap_as_falcon512();
+        
+            let implicit_account_id =
+                near_primitives::types::AccountId::try_from(hex::encode(falcon_pub_key.0))?;
+            let public_key_str = format!(
+                "falcon512:{}",
+                bs58::encode(falcon_pub_key.0).into_string()
+            );
+            let secret_keypair_str = format!(
+                "falcon512:{}",
+                bs58::encode(falcon_priv_key.0).into_string()
+            );
 
-    let falcon_pub_key = public_key.unwrap_as_falcon512();
-    let falcon_priv_key = secret_key.unwrap_as_falcon512();
-
-    let implicit_account_id =
-        near_primitives::types::AccountId::try_from(hex::encode(falcon_pub_key.0))?;
-    let public_key_str = format!(
-        "falcon512:{}",
-        bs58::encode(falcon_pub_key.0).into_string()
-    );
-    let secret_keypair_str = format!(
-        "falcon512:{}",
-        bs58::encode(falcon_priv_key.0).into_string()
-    );
-    let key_pair_properties: KeyPairProperties = KeyPairProperties {
-        seed_phrase_hd_path: generate_keypair.seed_phrase_hd_path,
-        master_seed_phrase,
-        implicit_account_id,
-        public_key_str,
-        secret_keypair_str,
-    };
-    Ok(key_pair_properties)
+            let key_pair_properties: KeyPairProperties = KeyPairProperties {
+                seed_phrase_hd_path: generate_keypair.seed_phrase_hd_path,
+                master_seed_phrase,
+                implicit_account_id,
+                public_key_str,
+                secret_keypair_str,
+            };
+            Ok(key_pair_properties)
+        }
+        _ => panic!("Wrong KeyType"),
+    }
 }
 
 pub fn print_transaction(transaction: near_primitives::transaction::Transaction) {

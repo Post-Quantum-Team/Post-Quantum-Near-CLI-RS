@@ -15,7 +15,7 @@ pub struct AddKeyCommand {
 }
 
 impl AddKeyCommand {
-    pub async fn process(&self, config: crate::config::Config) -> crate::CliResult {
+    pub async fn process(&self, config: crate::config::Config, key_type: near_crypto::KeyType) -> crate::CliResult {
         let prepopulated_unsigned_transaction = near_primitives::transaction::Transaction {
             signer_id: self.owner_account_id.clone().into(),
             public_key: near_crypto::PublicKey::empty(near_crypto::KeyType::FALCON512),
@@ -62,15 +62,27 @@ pub enum AccessKeyPermission {
 ///Add an access key for this account
 pub enum AccessKeyMode {
     #[strum_discriminants(strum(
-        message = "autogenerate-new-keypair          - Automatically generate a key pair"
+        message = "autogenerate-new-keypair          - Automatically generate an Ed25519 key pair"
     ))]
-    ///Automatically generate a key pair
-    AutogenerateNewKeypair(self::autogenerate_new_keypair::GenerateKeypair),
+    ///Automatically generate an Ed25519 key pair
+    AutogenerateNewKeypairEd25519(self::autogenerate_new_keypair::GenerateKeypair),
     #[strum_discriminants(strum(
-        message = "use-manually-provided-seed-prase  - Use the provided seed phrase manually"
+        message = "autogenerate-new-keypair          - Automatically generate a Falcon512 key pair"
+    ))]
+    ///Automatically generate a Falcon512 key pair
+    AutogenerateNewKeypairFalcon512(self::autogenerate_new_keypair::GenerateKeypair),
+    #[strum_discriminants(strum(
+        message = "use-manually-provided-seed-prase  - Use the provided seed phrase manually to generate an Ed25519 keypair"
     ))]
     ///Use the provided seed phrase manually
-    UseManuallyProvidedSeedPhrase(
+    UseManuallyProvidedSeedPhraseEd25519(
+        self::use_manually_provided_seed_phrase::AddAccessWithSeedPhraseAction,
+    ),
+    #[strum_discriminants(strum(
+        message = "use-manually-provided-seed-prase  - Use the provided seed phrase manually to generate a Falcon512 keypair"
+    ))]
+    ///Use the provided seed phrase manually
+    UseManuallyProvidedSeedPhraseFalcon512(
         self::use_manually_provided_seed_phrase::AddAccessWithSeedPhraseAction,
     ),
     #[strum_discriminants(strum(
@@ -93,14 +105,24 @@ impl AccessKeyMode {
                     .process(config, prepopulated_unsigned_transaction, permission)
                     .await
             }
-            AccessKeyMode::AutogenerateNewKeypair(generate_keypair) => {
+            AccessKeyMode::AutogenerateNewKeypairEd25519(generate_keypair) => {
                 generate_keypair
-                    .process(config, prepopulated_unsigned_transaction, permission)
+                    .process(config, prepopulated_unsigned_transaction, permission, near_crypto::KeyType::ED25519)
                     .await
             }
-            AccessKeyMode::UseManuallyProvidedSeedPhrase(add_access_with_seed_phrase_action) => {
+            AccessKeyMode::AutogenerateNewKeypairFalcon512(generate_keypair) => {
+                generate_keypair
+                    .process(config, prepopulated_unsigned_transaction, permission, near_crypto::KeyType::FALCON512)
+                    .await
+            }
+            AccessKeyMode::UseManuallyProvidedSeedPhraseEd25519(add_access_with_seed_phrase_action) => {
                 add_access_with_seed_phrase_action
-                    .process(config, prepopulated_unsigned_transaction, permission)
+                    .process(config, prepopulated_unsigned_transaction, permission, near_crypto::KeyType::ED25519)
+                    .await
+            }
+            AccessKeyMode::UseManuallyProvidedSeedPhraseFalcon512(add_access_with_seed_phrase_action) => {
+                add_access_with_seed_phrase_action
+                    .process(config, prepopulated_unsigned_transaction, permission, near_crypto::KeyType::FALCON512)
                     .await
             }
         }

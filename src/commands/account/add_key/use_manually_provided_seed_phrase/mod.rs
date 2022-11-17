@@ -16,11 +16,13 @@ impl AddAccessWithSeedPhraseAction {
         config: crate::config::Config,
         prepopulated_unsigned_transaction: near_primitives::transaction::Transaction,
         permission: near_primitives::account::AccessKeyPermission,
+        key_type: near_crypto::KeyType,
     ) -> crate::CliResult {
         let seed_phrase_hd_path_default = slip10::BIP32Path::from_str("m/44'/397'/0'").unwrap();
         let public_key = crate::common::get_public_key_from_seed_phrase(
             seed_phrase_hd_path_default,
             &self.master_seed_phrase,
+            key_type,
         )?;
         let access_key = near_primitives::account::AccessKey {
             nonce: 0,

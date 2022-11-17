@@ -83,7 +83,7 @@ impl AccessKeyMode {
             }
             AccessKeyMode::UseManuallyProvidedSeedPhrase(add_access_with_seed_phrase_action) => {
                 add_access_with_seed_phrase_action
-                    .process(config, prepopulated_unsigned_transaction, permission)
+                    .process(config, prepopulated_unsigned_transaction, permission, near_crypto::KeyType::FALCON512)
                     .await
             }
         }
