@@ -15,7 +15,7 @@ pub struct AddKeyCommand {
 }
 
 impl AddKeyCommand {
-    pub async fn process(&self, config: crate::config::Config, key_type: near_crypto::KeyType) -> crate::CliResult {
+    pub async fn process(&self, config: crate::config::Config) -> crate::CliResult {
         let prepopulated_unsigned_transaction = near_primitives::transaction::Transaction {
             signer_id: self.owner_account_id.clone().into(),
             public_key: near_crypto::PublicKey::empty(near_crypto::KeyType::FALCON512),
@@ -62,24 +62,24 @@ pub enum AccessKeyPermission {
 ///Add an access key for this account
 pub enum AccessKeyMode {
     #[strum_discriminants(strum(
-        message = "autogenerate-new-keypair          - Automatically generate an Ed25519 key pair"
+        message = "autogenerate-new-keypair-ed25519         - Automatically generate an Ed25519 key pair"
     ))]
     ///Automatically generate an Ed25519 key pair
     AutogenerateNewKeypairEd25519(self::autogenerate_new_keypair::GenerateKeypair),
     #[strum_discriminants(strum(
-        message = "autogenerate-new-keypair          - Automatically generate a Falcon512 key pair"
+        message = "autogenerate-new-keypair-falcon512        - Automatically generate a Falcon512 key pair"
     ))]
     ///Automatically generate a Falcon512 key pair
     AutogenerateNewKeypairFalcon512(self::autogenerate_new_keypair::GenerateKeypair),
     #[strum_discriminants(strum(
-        message = "use-manually-provided-seed-prase  - Use the provided seed phrase manually to generate an Ed25519 keypair"
+        message = "use-manually-provided-seed-prase-ed25519  - Use the provided seed phrase manually to generate an Ed25519 keypair"
     ))]
     ///Use the provided seed phrase manually
     UseManuallyProvidedSeedPhraseEd25519(
         self::use_manually_provided_seed_phrase::AddAccessWithSeedPhraseAction,
     ),
     #[strum_discriminants(strum(
-        message = "use-manually-provided-seed-prase  - Use the provided seed phrase manually to generate a Falcon512 keypair"
+        message = "use-manually-provided-seed-prase-falcon512  - Use the provided seed phrase manually to generate a Falcon512 keypair"
     ))]
     ///Use the provided seed phrase manually
     UseManuallyProvidedSeedPhraseFalcon512(

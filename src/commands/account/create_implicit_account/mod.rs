@@ -10,8 +10,8 @@ pub struct ImplicitAccount {
 }
 
 impl ImplicitAccount {
-    pub async fn process(&self, key_type: near_crypto::KeyType) -> crate::CliResult {
-        self.mode.process(key_type).await
+    pub async fn process(&self) -> crate::CliResult {
+        self.mode.process().await
     }
 }
 
@@ -21,10 +21,15 @@ impl ImplicitAccount {
 ///Choose a mode to create an implicit account
 pub enum Mode {
     #[strum_discriminants(strum(
-        message = "use-auto-generation  - Use auto-generation to create an implicit account"
+        message = "use-auto-generation-ed25519  - Use auto-generation to create an implicit account with Ed25519 keys"
     ))]
     ///Use auto-generation to create an implicit account
-    UseAutoGeneration(self::SaveImplicitAccount),
+    UseAutoGenerationEd25519(self::SaveImplicitAccount),
+    #[strum_discriminants(strum(
+        message = "use-auto-generation-falcon512  - Use auto-generation to create an implicit account with Falcon512 keys"
+    ))]
+    ///Use auto-generation to create an implicit account
+    UseAutoGenerationFalcon512(self::SaveImplicitAccount),
     #[cfg(feature = "ledger")]
     #[strum_discriminants(strum(
         message = "use-ledger           - Use ledger to create an implicit account"
@@ -34,13 +39,13 @@ pub enum Mode {
 }
 
 impl Mode {
-    pub async fn process(&self, key_type: near_crypto::KeyType) -> crate::CliResult {
+    pub async fn process(&self) -> crate::CliResult {
         let mut file_path = std::path::PathBuf::new();
         let mut file_name = std::path::PathBuf::new();
         let mut buf = String::new();
         match self {
-            Mode::UseAutoGeneration(save_implicit_account) => {
-                let key_pair_properties = crate::common::generate_keypair(key_type).await?;
+            Mode::UseAutoGenerationEd25519(save_implicit_account) => {
+                let key_pair_properties = crate::common::generate_keypair(near_crypto::KeyType::ED25519).await?;
                 buf.push_str(
                     &serde_json::json!({
                         "master_seed_phrase": key_pair_properties.master_seed_phrase,
@@ -52,6 +57,22 @@ impl Mode {
                     .to_string(),
                 );
                 file_name.push(format!("{}.json", key_pair_properties.implicit_account_id));
+                file_path.push(save_implicit_account.save_to_folder.get_folder_path());
+            }
+            Mode::UseAutoGenerationFalcon512(save_implicit_account) => {
+                let key_pair_properties = crate::common::generate_keypair(near_crypto::KeyType::FALCON512).await?;
+                buf.push_str(
+                    &serde_json::json!({
+                        "master_seed_phrase": key_pair_properties.master_seed_phrase,
+                        "seed_phrase_hd_path": key_pair_properties.seed_phrase_hd_path,
+                        "implicit_account_id": key_pair_properties.implicit_account_id,
+                        "public_key": key_pair_properties.public_key_str,
+                        "private_key": key_pair_properties.secret_keypair_str,
+                    })
+                    .to_string(),
+                );
+                let falcon_key_to_file = key_pair_properties.implicit_account_id[..64].to_string();
+                file_name.push(format!("{}.json", falcon_key_to_file));
                 file_path.push(save_implicit_account.save_to_folder.get_folder_path());
             }
             #[cfg(feature = "ledger")]
