@@ -21,6 +21,7 @@ pub struct SignKeychain {
 #[derive(Debug, Deserialize)]
 pub struct AccountKeyPair {
     pub public_key: near_crypto::PublicKey,
+    #[serde(alias = "secret_key")]
     pub private_key: near_crypto::SecretKey,
 }
 
