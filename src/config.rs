@@ -68,6 +68,18 @@ impl Default for Config {
                 api_key: None,
             },
         );
+        networks.insert(
+            "kurtosis".to_string(),
+            NetworkConfig {
+                network_name: "kurtosis".to_string(),
+                rpc_url: "http://127.0.0.1:8332".parse().unwrap(),
+                wallet_url: "http://127.0.0.1:8334".parse().unwrap(),
+                explorer_transaction_url: "http://127.0.0.1:8331/transactions/"
+                    .parse()
+                    .unwrap(),
+                api_key: None,
+            },
+        );
         Self {
             credentials_home_dir,
             networks,
